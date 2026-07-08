@@ -4,3 +4,8 @@ A beautiful, modern React frontend interface built with Vite and Tailwind CSS th
 
 ### 🛠️ Credits
 This frontend interface is built to wrap around and interact with **Microsoft's open-source `MarkItDown` engine**, leveraging its powerful file extraction capabilities.
+
+
+### Installation
+npm install
+npm run dev
