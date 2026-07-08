@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useRef, useState, useEffect } from 'react'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 const ACCEPTED = ['.pdf', '.docx', '.pptx', '.xlsx', '.html', '.txt', '.csv', '.json']
@@ -34,7 +34,23 @@ export default function App() {
   const [errorMsg, setErrorMsg] = useState('')
   const [isYoutubeError, setIsYoutubeError] = useState(false)
   const [copied, setCopied] = useState(false)
+  
+  // New States for the Server Sleeping Alert
+  const [isServerSleeping, setIsServerSleeping] = useState(false)
+  const [countdown, setCountdown] = useState(90)
+  
   const inputRef = useRef(null)
+
+  // Countdown timer effect when server sleep is detected
+  useEffect(() => {
+    let timer
+    if (isServerSleeping && countdown > 0) {
+      timer = setInterval(() => {
+        setCountdown((prev) => prev - 1)
+      }, 1000)
+    }
+    return () => clearInterval(timer)
+  }, [isServerSleeping, countdown])
 
   const pickFile = useCallback((f) => {
     if (!f) return
@@ -58,7 +74,7 @@ export default function App() {
     }
   }
 
-  const isYoutubeUrl = (u) => /youtube\.com|youtu\.be/i.test(u)
+  const isYoutubeUrl = (u) => /youtube.com|youtu.be/i.test(u)
 
   const convert = async () => {
     if (activeTab === 'file' && !file) return
@@ -67,6 +83,14 @@ export default function App() {
     setStatus('converting')
     setErrorMsg('')
     setIsYoutubeError(false)
+    setIsServerSleeping(false)
+    setCountdown(90)
+
+    // Start a safety timer. If backend takes > 4 seconds, show the sleeping message.
+    const sleepCheckTimer = setTimeout(() => {
+      setIsServerSleeping(true)
+    }, 4000)
+
     try {
       let res
       if (activeTab === 'file') {
@@ -81,6 +105,10 @@ export default function App() {
         })
       }
 
+      // If we get an answer, clear the sleep warning states
+      clearTimeout(sleepCheckTimer)
+      setIsServerSleeping(false)
+
       const data = await res.json()
       if (!res.ok) {
         const msg = data.detail || 'Conversion failed'
@@ -92,6 +120,8 @@ export default function App() {
       setMarkdown(data.markdown)
       setStatus('done')
     } catch (err) {
+      clearTimeout(sleepCheckTimer)
+      setIsServerSleeping(false)
       setErrorMsg(err.message || 'Something went wrong')
       setStatus('error')
     }
@@ -104,6 +134,7 @@ export default function App() {
     setMarkdown('')
     setErrorMsg('')
     setIsYoutubeError(false)
+    setIsServerSleeping(false)
   }
 
   const download = () => {
@@ -234,6 +265,30 @@ export default function App() {
             </button>
           )}
         </div>
+
+        {/* Beautiful Dynamic Server Waking Up Message */}
+        {status === 'converting' && isServerSleeping && (
+          <div className="mt-4 rounded-xl border border-amber-500/30 bg-amber-950/20 p-4 animate-pulse">
+            <div className="flex items-start gap-3">
+              <span className="text-lg">⏳</span>
+              <div className="flex-1">
+                <h4 className="text-amber-400 font-medium text-sm">Waking up the engine...</h4>
+                <p className="text-slate-400 text-xs mt-1 leading-relaxed">
+                  We are using a free hosting server. Because it hasn't been used recently, it takes up to <span className="text-amber-300 font-semibold">90 seconds</span> to turn back on. Please hold on; once awake, your file will convert instantly!
+                </p>
+                <div className="mt-3 flex items-center gap-2">
+                  <div className="h-1.5 flex-1 bg-slate-800 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-amber-400 transition-all duration-1000 ease-linear"
+                      style={{ width: `${((90 - countdown) / 90) * 100}%` }}
+                    />
+                  </div>
+                  <span className="font-mono text-xs text-amber-400 font-semibold">{countdown}s</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {status === 'error' && (
           <div className="mt-3 rounded-lg border border-red-900/50 bg-red-950/30 p-3">
