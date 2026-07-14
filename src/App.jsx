@@ -7,6 +7,8 @@ const IMAGE_EXT = ['.png', '.jpg', '.jpeg', '.webp', '.bmp', '.tiff', '.tif', '.
 const AUDIO_EXT = ['.mp3', '.wav', '.m4a', '.ogg', '.opus', '.webm', '.flac']
 
 const OCR_MAX_BYTES = 1 * 1024 * 1024
+const DOC_MAX_BYTES = 10 * 1024 * 1024 // 
+const BATCH_MAX_BYTES = 40 * 1024 * 1024 //
 
 const STEPS = [
   { key: 'idle', label: 'Input' },
@@ -365,23 +367,51 @@ export default function App() {
 
     const incomingFiles = Array.from(fileList)
 
+    // 1. Check if the user selected more than 4 files at once
+    if (kind === 'file' && incomingFiles.length > 4) {
+      setErrorMsg("You can only upload a maximum of 4 files at a time.")
+      setStatus('error')
+      return
+    }
+
+    // 2. Check collective batch size limit (40MB total)
+    if (kind === 'file' && incomingFiles.length > 1) {
+      const totalBatchSize = incomingFiles.reduce((sum, f) => sum + f.size, 0)
+      if (totalBatchSize > BATCH_MAX_BYTES) {
+        setErrorMsg(`The total size of your files (${formatBytes(totalBatchSize)}) exceeds the 40 MB batch limit.`)
+        setStatus('error')
+        return
+      }
+    }
+
+    // 3. Loop through individual files to check file types and individual size limits
     for (const f of incomingFiles) {
       const ext = '.' + f.name.split('.').pop().toLowerCase()
 
+      // Check if file type is allowed
       if (!allowed.includes(ext)) {
         setErrorMsg(`Unsupported file type: ${ext}`)
         setStatus('error')
         return
       }
 
+      // Check single document size (max 10MB)
+      if (kind === 'file' && f.size > DOC_MAX_BYTES) {
+        setErrorMsg(`File "${f.name}" is too heavy. Maximum size per file is 10 MB.`)
+        setStatus('error')
+        return
+      }
+
+      // Check single image size (max 1MB)
       if (kind === 'image' && f.size > OCR_MAX_BYTES) {
         setOversizedInfo({ name: f.name, size: f.size })
         return
       }
     }
 
+    // 4. Everything is clean, set the state!
     setOversizedInfo(null)
-    setFiles(kind === 'file' ? incomingFiles.slice(0, 20) : [incomingFiles[0]])
+    setFiles(kind === 'file' ? incomingFiles.slice(0, 4) : [incomingFiles[0]])
     setStatus('idle')
     setMarkdown('')
     setBatchResults([])
@@ -629,7 +659,7 @@ export default function App() {
               ) : (
                 <>
                   <p className="text-sm text-slate-300 font-medium">Drag files here, or click to browse</p>
-                  <p className="text-xs text-slate-500 mt-1">Supports up to 20 documents simultaneously</p>
+                  <p className="text-xs text-slate-500 mt-1">Supports up to 4 documents (Max 10MB per file, 40MB total)</p>
                 </>
               )}
             </div>
