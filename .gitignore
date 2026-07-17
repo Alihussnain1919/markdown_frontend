@@ -23,3 +23,4 @@ build/
 # Operating System files
 .DS_Store
 Thumbs.db.DS_Store
+.aider*
